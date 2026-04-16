@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HEIC Bulk Image Converter</title>
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --color-background: #ffffff;
+      --color-background-secondary: #f5f5f5;
+      --color-background-tertiary: #ebebeb;
+      --color-border-primary: #999;
+      --color-border-secondary: #ccc;
+      --color-border-tertiary: #e5e5e5;
+      --color-text-primary: #111;
+      --color-text-secondary: #555;
+      --color-text-tertiary: #999;
+      --color-text-info: #2563eb;
+      --color-text-success: #16a34a;
+      --color-text-danger: #dc2626;
+      --border-radius-md: 6px;
+      --border-radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --color-background: #1a1a1a;
+        --color-background-secondary: #2a2a2a;
+        --color-background-tertiary: #333;
+        --color-border-primary: #666;
+        --color-border-secondary: #444;
+        --color-border-tertiary: #333;
+        --color-text-primary: #f0f0f0;
+        --color-text-secondary: #aaa;
+        --color-text-tertiary: #666;
+        --color-text-info: #60a5fa;
+        --color-text-success: #4ade80;
+        --color-text-danger: #f87171;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--color-background);
+      color: var(--color-text-primary);
+      margin: 0;
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0 0 1.5rem;
+      color: var(--color-text-primary);
+    }
+
+    #drop-zone {
+      border: 2px dashed var(--color-border-secondary);
+      border-radius: var(--border-radius-lg);
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    #drop-zone.drag-over {
+      background: var(--color-background-secondary);
+      border-color: var(--color-border-primary);
+    }
+    #file-input { display: none; }
+
+    .file-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 0.5px solid var(--color-border-tertiary);
+      font-size: 14px;
+    }
+    .file-row:last-child { border-bottom: none; }
+    .file-name { flex: 1; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-size { color: var(--color-text-secondary); font-size: 13px; min-width: 60px; text-align: right; }
+    .file-status { min-width: 90px; text-align: right; font-size: 13px; }
+    .status-waiting { color: var(--color-text-tertiary); }
+    .status-converting { color: var(--color-text-info); }
+    .status-done { color: var(--color-text-success); }
+    .status-error { color: var(--color-text-danger); }
+
+    .dl-btn {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: var(--border-radius-md);
+      border: 0.5px solid var(--color-border-secondary);
+      background: transparent;
+      color: var(--color-text-primary);
+      cursor: pointer;
+    }
+    .dl-btn:hover { background: var(--color-background-secondary); }
+    .dl-btn:disabled { opacity: 0.4; cursor: default; }
+
+    #options-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 1rem 0;
+    }
+    #options-row label { font-size: 14px; color: var(--color-text-secondary); }
+    #options-row select, #options-row input[type=range] { font-size: 14px; }
+
+    #convert-btn {
+      padding: 8px 20px;
+      border-radius: var(--border-radius-md);
+      border: 0.5px solid var(--color-border-secondary);
+      background: var(--color-background-secondary);
+      color: var(--color-text-primary);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    #convert-btn:hover { background: var(--color-background-tertiary); }
+    #convert-btn:disabled { opacity: 0.5; cursor: default; }
+
+    #dl-all-btn {
+      padding: 8px 20px;
+      border-radius: var(--border-radius-md);
+      border: 0.5px solid var(--color-border-secondary);
+      background: transparent;
+      color: var(--color-text-primary);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #dl-all-btn:disabled { opacity: 0.4; cursor: default; }
+
+    #progress-bar-wrap {
+      background: var(--color-background-secondary);
+      border-radius: 99px;
+      height: 6px;
+      margin: 0.75rem 0;
+      overflow: hidden;
+      display: none;
+    }
+    #progress-bar {
+      height: 100%;
+      background: #378ADD;
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.2s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>HEIC Bulk Image Converter</h1>
+
+    <div id="drop-zone">
+      <input type="file" id="file-input" accept=".heic,.heif" multiple>
+      <p style="font-size: 15px; font-weight: 500; margin: 0 0 4px; color: var(--color-text-primary);">Drop HEIC files here</p>
+      <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 1rem;">or click to browse</p>
+      <button onclick="document.getElementById('file-input').click()" style="padding: 7px 18px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; cursor: pointer; font-size: 14px; color: var(--color-text-primary);">Choose files</button>
+    </div>
+
+    <div id="options-row" style="display: none;">
+      <label>Format
+        <select id="fmt-select" style="margin-left: 8px;">
+          <option value="image/jpeg">JPEG</option>
+          <option value="image/png">PNG</option>
+        </select>
+      </label>
+      <label id="quality-label">Quality: <span id="quality-val">90</span>%
+        <input type="range" id="quality-input" min="10" max="100" value="90" step="1" style="margin-left: 8px; width: 100px;">
+      </label>
+      <button id="convert-btn">Convert all</button>
+      <button id="dl-all-btn" disabled>Download all</button>
+      <button id="clear-btn" style="font-size: 13px; color: var(--color-text-secondary); background: none; border: none; cursor: pointer; padding: 0;">Clear</button>
+    </div>
+
+    <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+    <div id="file-list"></div>
+  </div>
+
+  <script>
+    const drop = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const fileList = document.getElementById('file-list');
+    const optionsRow = document.getElementById('options-row');
+    const convertBtn = document.getElementById('convert-btn');
+    const dlAllBtn = document.getElementById('dl-all-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const fmtSelect = document.getElementById('fmt-select');
+    const qualityInput = document.getElementById('quality-input');
+    const qualityVal = document.getElementById('quality-val');
+    const qualityLabel = document.getElementById('quality-label');
+    const progressWrap = document.getElementById('progress-bar-wrap');
+    const progressBar = document.getElementById('progress-bar');
+
+    let files = [];
+    let results = {};
+
+    fmtSelect.addEventListener('change', () => {
+      qualityLabel.style.display = fmtSelect.value === 'image/png' ? 'none' : '';
+    });
+    qualityInput.addEventListener('input', () => {
+      qualityVal.textContent = qualityInput.value;
+    });
+
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+    drop.addEventListener('drop', e => {
+      e.preventDefault();
+      drop.classList.remove('drag-over');
+      addFiles([...e.dataTransfer.files]);
+    });
+    drop.addEventListener('click', e => {
+      if (e.target.tagName !== 'BUTTON') fileInput.click();
+    });
+    fileInput.addEventListener('change', () => addFiles([...fileInput.files]));
+
+    clearBtn.addEventListener('click', () => {
+      files = [];
+      results = {};
+      fileList.innerHTML = '';
+      optionsRow.style.display = 'none';
+      progressWrap.style.display = 'none';
+      fileInput.value = '';
+    });
+
+    function addFiles(newFiles) {
+      const heicFiles = newFiles.filter(f => /\.heic$|\.heif$/i.test(f.name) || f.type === 'image/heic' || f.type === 'image/heif');
+      if (!heicFiles.length) return;
+      heicFiles.forEach(f => {
+        if (!files.find(x => x.name === f.name && x.size === f.size)) {
+          files.push(f);
+        }
+      });
+      renderList();
+      optionsRow.style.display = 'flex';
+      dlAllBtn.disabled = true;
+    }
+
+    function fmtSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+      return (bytes/1024/1024).toFixed(1) + ' MB';
+    }
+
+    function renderList() {
+      fileList.innerHTML = '';
+      files.forEach((f, i) => {
+        const row = document.createElement('div');
+        row.className = 'file-row';
+        row.id = 'row-' + i;
+        const res = results[i];
+        const statusClass = res ? (res.error ? 'status-error' : 'status-done') : 'status-waiting';
+        const statusText = res ? (res.error ? 'Error' : 'Done') : 'Waiting';
+        row.innerHTML = `
+          <span class="file-name" title="${f.name}">${f.name}</span>
+          <span class="file-size">${fmtSize(f.size)}</span>
+          <span class="file-status ${statusClass}" id="status-${i}">${statusText}</span>
+          <button class="dl-btn" id="dl-${i}" ${res && !res.error ? '' : 'disabled'} onclick="downloadOne(${i})">Download</button>
+        `;
+        fileList.appendChild(row);
+      });
+    }
+
+    convertBtn.addEventListener('click', async () => {
+      if (!files.length) return;
+      convertBtn.disabled = true;
+      dlAllBtn.disabled = true;
+      results = {};
+      progressWrap.style.display = 'block';
+      progressBar.style.width = '0%';
+
+      const format = fmtSelect.value;
+      const quality = parseInt(qualityInput.value) / 100;
+
+      for (let i = 0; i < files.length; i++) {
+        const statusEl = document.getElementById('status-' + i);
+        const dlBtn = document.getElementById('dl-' + i);
+        statusEl.className = 'file-status status-converting';
+        statusEl.textContent = 'Converting...';
+        try {
+          const blob = await heic2any({ blob: files[i], toType: format, quality: format === 'image/png' ? undefined : quality });
+          const outBlob = Array.isArray(blob) ? blob[0] : blob;
+          results[i] = { blob: outBlob };
+          statusEl.className = 'file-status status-done';
+          statusEl.textContent = 'Done';
+          dlBtn.disabled = false;
+        } catch(e) {
+          results[i] = { error: true };
+          statusEl.className = 'file-status status-error';
+          statusEl.textContent = 'Error';
+        }
+        progressBar.style.width = Math.round(((i+1)/files.length)*100) + '%';
+      }
+
+      convertBtn.disabled = false;
+      const anyDone = Object.values(results).some(r => !r.error);
+      dlAllBtn.disabled = !anyDone;
+    });
+
+    function ext(mimeType) { return mimeType === 'image/png' ? '.png' : '.jpg'; }
+    function baseName(name) { return name.replace(/\.(heic|heif)$/i, ''); }
+
+    function downloadOne(i) {
+      const res = results[i];
+      if (!res || res.error) return;
+      const url = URL.createObjectURL(res.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = baseName(files[i].name) + ext(res.blob.type);
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    dlAllBtn.addEventListener('click', async () => {
+      const doneIndices = Object.keys(results).filter(i => !results[i].error);
+      if (doneIndices.length === 1) { downloadOne(parseInt(doneIndices[0])); return; }
+      try {
+        const JSZip = (await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm')).default;
+        const zip = new JSZip();
+        doneIndices.forEach(i => {
+          const name = baseName(files[i].name) + ext(results[i].blob.type);
+          zip.file(name, results[i].blob);
+        });
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'converted_images.zip';
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        doneIndices.forEach(i => downloadOne(parseInt(i)));
+      }
+    });
+  </script>
+</body>
+</html>
